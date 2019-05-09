@@ -1,6 +1,9 @@
 package com.safeway.exploreabbrivations.activities;
 
+import android.arch.lifecycle.ViewModelProviders;
+import android.databinding.DataBindingUtil;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.view.MenuItemCompat;
@@ -19,11 +22,15 @@ import android.widget.Toast;
 import com.safeway.exploreabbrivations.AbbrivationAPI;
 import com.safeway.exploreabbrivations.R;
 import com.safeway.exploreabbrivations.adapters.AbbrevationAdapter;
+import com.safeway.exploreabbrivations.databinding.ActivityMainBinding;
 import com.safeway.exploreabbrivations.models.Item;
 import com.safeway.exploreabbrivations.models.Results;
+import com.safeway.exploreabbrivations.viewmodels.AbbrevationViewModel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -33,26 +40,34 @@ public class MainActivity extends AppCompatActivity {
 
     private ArrayList<Item> abbreviationResults;
     private AbbrevationAdapter adapter;
-    private RecyclerView rvFullForm;
+
+    private AbbrevationViewModel viewModel;
 
     String mQuery = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        // Lookup the recyclerview in activity layout
-        rvFullForm = (RecyclerView) findViewById(R.id.rvFullForm);
+        ActivityMainBinding binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
+        viewModel = ViewModelProviders.of(this).get(AbbrevationViewModel.class);
+        binding.setViewModel(viewModel);
+        binding.setLifecycleOwner(this);
+
+        setSupportActionBar(binding.toolbar);
 
         abbreviationResults = new ArrayList<Item>();
         adapter = new AbbrevationAdapter(abbreviationResults);
+
         // Attach the adapter to the recyclerview to populate items
-        rvFullForm.setAdapter(adapter);
+        binding.content.rvFullForm.setAdapter(adapter);
         // Set layout manager to position the items
-        rvFullForm.setLayoutManager(new LinearLayoutManager(MainActivity.this));
+        binding.content.rvFullForm.setLayoutManager(new LinearLayoutManager(MainActivity.this));
+        viewModel.getItemList().observe(MainActivity.this, itemList -> {
+            abbreviationResults.clear();
+            abbreviationResults.addAll(itemList);
+            adapter.notifyDataSetChanged();
+        });
     }
 
     @Override
@@ -61,48 +76,6 @@ public class MainActivity extends AppCompatActivity {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         setupSearchView(menu);
         return true;
-    }
-
-    public void fetchResults(String q){
-        /*Create handle for the RetrofitInstance interface*/
-        Call<List<Results>> call;
-        call = AbbrivationAPI.getInstance().getFullForm(q);
-        Log.v("REQUEST url", String.valueOf(call.request().url()));
-        call.enqueue(new Callback<List<Results>>() {
-            @Override
-            public void onResponse(Call<List<Results>> call, Response<List<Results>> response) {
-                try {
-                    Log.v("RESPONSE_CALLED", "ON_RESPONSE_CALLED");
-                    String didItWork = String.valueOf(response.isSuccessful());
-                    Log.v("SUCCESS?", didItWork);
-                    Log.v("RESPONSE_CODE", String.valueOf(response.code()));
-                    if (response.body() == null) {
-                        Log.v("RESPONSE_BODY", "RESPONSE_BODY_IS_NULL");
-                    }
-                    if (response.body().isEmpty()) {
-                        Toast.makeText(MainActivity.this, getResources().getString(R.string.no_results), Toast.LENGTH_LONG);
-                        abbreviationResults.clear();
-                    } else {
-                        ArrayList<Item> items = (ArrayList<Item>) response.body().get(0).getFullNameStrings();
-                        if (!items.isEmpty())
-                            abbreviationResults.addAll(items);
-
-                    }
-                    adapter.notifyDataSetChanged();
-                }
-                catch (NullPointerException e) {
-                    Toast.makeText(MainActivity.this, "Query failed: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG);
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<Results>> call, Throwable t) {
-                Log.v("FAILURE", t.getStackTrace().toString());
-                Log.v("FAILU", String.valueOf(t.getMessage()));
-                Toast.makeText(MainActivity.this, "Something went wrong...Please try later!", Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     private void setupSearchView(Menu menu) {
@@ -116,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
             public boolean onQueryTextSubmit(String query) {
                 abbreviationResults.clear();
                 mQuery = query;
-                fetchResults(mQuery);
+                viewModel.fetchResults(mQuery);
                 searchView.clearFocus();
                 return true;
             }

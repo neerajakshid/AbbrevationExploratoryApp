@@ -10,11 +10,24 @@ public class Results {
     @Expose
     public ArrayList<Item> fullNameStrings;
 
+    public int listSize = 0;
+
     public ArrayList<Item> getFullNameStrings() {
         return fullNameStrings;
     }
 
     public void setFullNameStrings(ArrayList<Item> fullNameStrings) {
         this.fullNameStrings = fullNameStrings;
+        listSize = fullNameStrings.size();
     }
+
+
+
+
+
+
+
+
+
+
 }
